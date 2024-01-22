@@ -8,4 +8,7 @@ import java.util.HashMap;
 @Mapper
 public interface JudgeMapper {
     ArrayList<HashMap<String, String>> getTestCase(String problem_no);
+    void setSubmitStatus(HashMap<String, String> correct);
+
+    String getProblemTime(String problem_Id);
 }

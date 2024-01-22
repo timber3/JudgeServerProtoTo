@@ -9,6 +9,7 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 @Service
 public class JudgeServiceImpl implements JudgeService{
@@ -21,18 +22,24 @@ public class JudgeServiceImpl implements JudgeService{
     @Override
     public JudgeResultDto judge(HashMap<String, String> map) {
         JudgeResultDto judgeResultDto = new JudgeResultDto();
-
         // 채점 코드 실행하기 전 TC 가져오기.
         
         try {
-            ArrayList<HashMap<String, String>> list = mapper.getTestCase(map.get("problem_no"));
-            // TC 불러왔으면 검사하는 로직 수행하기
+
+            // 테스트 케이스들을 전부 가져온다.
+            ArrayList<HashMap<String, String>> testCaseList = mapper.getTestCase(map.get("problem_no"));
+            ArrayList<String> userResultList = new ArrayList<>();
+            String timelimit = mapper.getProblemTime(map.get("problem_no"));
+
+            long tl = Long.parseLong(timelimit);
+
+            String submitStatus = "맞았습니다.";
 
             String id = UUID.randomUUID().toString();
 
-            String path = "C:\\Program Files\\Java\\jdk-17.0.1\\lib\\" + id; //폴더 경로
-            String cmd = "javac \"C:\\Program Files\\Java\\jdk-17.0.1\\lib\\" + id + "\\solution.java\"";
-            String cmd2 = "java -cp \"C:\\Program Files\\Java\\jdk-17.0.1\\lib\\" + id + "\" solution";
+            String path = "C:\\Program Files\\Java\\jdk-17\\lib\\" + id; //폴더 경로
+            String cmd = "javac \"C:\\Program Files\\Java\\jdk-17\\lib\\" + id + "\\solution.java\"";
+            String cmd2 = "java -cp \"C:\\Program Files\\Java\\jdk-17\\lib\\" + id + "\" solution";
 
             File Folder = new File(path);
 
@@ -60,24 +67,105 @@ public class JudgeServiceImpl implements JudgeService{
 
             System.out.println(cmd);
 
-            Process process2 = runtime.exec(cmd2);
+            Double timeSum = 0.0;
 
-            BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(process2.getOutputStream()));
-            bw.write(list.get(0).get("input"));
-            bw.flush();
-            bw.close();
-            BufferedReader bf =new BufferedReader(new InputStreamReader(process2.getInputStream(), "MS949"));
-            String str = bf.readLine();
-            System.out.println(str);
+            boolean isError = false;
 
-            // 3. 파일 실행시켜서 입력버퍼에 input 값 넣기
+            // TC 불러왔으면 검사하는 로직 수행하기
+            for (int tc = 0 ; tc < testCaseList.size() ; tc++) {
+                // 컴파일 하고 실행시키기
+
+                Process process2 = runtime.exec(cmd2);
+
+                BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(process2.getOutputStream()));
+                bw.write(testCaseList.get(tc).get("input"));
+                bw.flush();
+                double beforeTime = System.currentTimeMillis();
+                bw.close();
+
+                if (!process2.waitFor(tl + 2000 + 1000, TimeUnit.MILLISECONDS)) {
+                    submitStatus = "시간 초과";
+                    isError = true;
+                    break;
+                }
+                double afterTime = System.currentTimeMillis();
+
+                BufferedReader bf = new BufferedReader(new InputStreamReader(process2.getInputStream(), "MS949"));
+                String str = bf.readLine();
+
+                timeSum += (afterTime-beforeTime)/1000;
+
+                System.out.printf("tc :%d  시간 측정 결과 : %.3f\n", tc, (afterTime-beforeTime)/1000);
+                System.out.println(str);
+
+                BufferedReader errorReader = process2.errorReader();
 
 
-            // 4. 출력 값 받아오고 output 값 비교하기
+
+                if (process2.exitValue() != 0) {
+                    String error = errorReader.readLine();
+                    String[] frags = error.split(" ");
+                    isError = true;
+
+                    switch (frags[0]) {
+                        case "Exception" :
+                            System.out.println(error);
+                            submitStatus = "Exception : " + frags[4];
+                            break;
+                        case "Error:" :
+                            submitStatus = "컴파일 에러";
+                            break;
+                    }
+
+                    break;
+                }
+
+                if (!testCaseList.get(tc).get("output").equals(str) ) {
+                    submitStatus = "틀렸습니다";
+                    isError = true;
+                    break;
+                }
 
 
-            // 5. 결과 답기
+                System.out.println(errorReader.readLine());
+                System.out.println(process2.exitValue());
 
+                // 결과 값 출력 & 저장
+                System.out.println(str);
+                userResultList.add(str);
+            }
+
+            // 일단 단순하게 맞 or 틀 로 구분
+//            boolean correct = true;
+
+//            // 사용자 결과와 DB의 결과를 비교해서 DB에 반영하기
+//            for (int i = 0 ; i < testCaseList.size(); i ++) {
+//                // user가 제출한 코드의 답과, 테케의 답이 다를 경우
+//                if (!testCaseList.get(i).get("output").equals(userResultList.get(i))) {
+//                    correct = false;
+//                    break;
+//                }
+//            }
+
+
+            String timeResult;
+
+            if(isError) {
+                timeResult = null;
+            } else {
+                timeSum *= 1000;
+                timeSum /= testCaseList.size();
+                timeResult = timeSum + "";
+            }
+
+            // 정답 여부를 판단 했으면 저장하기
+            HashMap<String, String> result = new HashMap<>();
+
+            result.put("submit_no", map.get("submit_no"));
+            result.put("result" , submitStatus);
+            result.put("time", timeResult);
+
+            mapper.setSubmitStatus(result);
 
         } catch (Exception e) {
             judgeResultDto.setStatus("500");

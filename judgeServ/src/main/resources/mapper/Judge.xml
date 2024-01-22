@@ -8,4 +8,17 @@
         select * from ps_testcase where problem_Id="${problem_no}";
     </select>
 
+    <update id="setSubmitStatus" parameterType="hashMap">
+
+        update ps_submit set submit_status="${result}"
+        <if test="time != null">
+            , time_complexity="${time}"
+        </if>
+        where submit_no="${submit_no}";
+    </update>
+
+    <select id="getProblemTime" parameterType="string" resultType="string">
+        select problem_time from ps_problem where problem_Id="${problem_Id}";
+    </select>
+
 </mapper>

@@ -51,7 +51,7 @@ public class DataBaseConfiguration{
         SqlSessionFactoryBean session = new SqlSessionFactoryBean();
         session.setDataSource(dataSource);
         session.setMapperLocations(applicationContext.getResources("classpath:mapper/**/*.xml"));
-        session.setTypeAliasesPackage("com.khc.shop.*.model");
+        session.setTypeAliasesPackage("com.ssafy.judgeServ.judge.*.model");
         return session.getObject();
     }
 
