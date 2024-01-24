@@ -1,40 +1,35 @@
 package com.ssafy.judgeServ.judge.model.service;
 
 import com.ssafy.judgeServ.judge.mapper.JudgeMapper;
+import com.ssafy.judgeServ.judge.model.dto.JudgeResponseDto;
 import com.ssafy.judgeServ.judge.model.dto.JudgeResultDto;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.io.*;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 @Service
-public class JudgeServiceImpl implements JudgeService{
-    JudgeMapper mapper;
-
-    public JudgeServiceImpl(JudgeMapper mapper) {
-        this.mapper = mapper;
-    }
+@RequiredArgsConstructor
+public class JudgeJavaServiceImpl implements JudgeService {
+    private JudgeMapper mapper;
 
     @Override
-    public JudgeResultDto judge(HashMap<String, String> map) {
-        JudgeResultDto judgeResultDto = new JudgeResultDto();
+    public JudgeResponseDto judge(HashMap<String, String> map) {
+        JudgeResponseDto judgeResponseDto = new JudgeResponseDto();
         // 채점 코드 실행하기 전 TC 가져오기.
         
         try {
-
             // 테스트 케이스들을 전부 가져온다.
             ArrayList<HashMap<String, String>> testCaseList = mapper.getTestCase(map.get("problem_no"));
 
             for (int i = 0 ; i < testCaseList.size(); i ++) {
                 System.out.println("testCaseList.get(i).get(\"input\") = " + testCaseList.get(i).get("input"));
             }
-            ArrayList<String> userResultList = new ArrayList<>();
+
             String timelimit = mapper.getProblemTime(map.get("problem_no"));
 
             long tl = Long.parseLong(timelimit);
@@ -108,8 +103,6 @@ public class JudgeServiceImpl implements JudgeService{
 //                BufferedReader errorReader = process2.errorReader();
                 BufferedReader errorReader = new BufferedReader(new InputStreamReader(process2.getErrorStream()));
 
-
-
                 if (process2.exitValue() != 0) {
                     String error = errorReader.readLine();
                     String[] frags = error.split(" ");
@@ -125,7 +118,6 @@ public class JudgeServiceImpl implements JudgeService{
                             submitStatus = "컴파일 에러";
                             break;
                     }
-
                     break;
                 }
 
@@ -135,14 +127,11 @@ public class JudgeServiceImpl implements JudgeService{
                     break;
                 }
 
-
                 System.out.println(errorReader.readLine());
                 System.out.println("process2.exitValue() = " + process2.exitValue());
 
                 // 결과 값 출력 & 저장
                 System.out.println("str = " + str);
-                userResultList.add(str);
-
             }
 
             String timeResult;
@@ -173,24 +162,40 @@ public class JudgeServiceImpl implements JudgeService{
             javaFile.delete();
             dirFile.delete();
 
+            judgeResponseDto.setStatus("200");
+            judgeResponseDto.setMsg("채점 성공");
+            judgeResponseDto.setData(null);
+
         } catch (Exception e) {
-            judgeResultDto.setStatus("500");
-            judgeResultDto.setMsg("테케 가져오기 실패");
-            judgeResultDto.setData(null);
+            judgeResponseDto.setStatus("500");
+            judgeResponseDto.setMsg("테케 가져오기 실패");
+            judgeResponseDto.setData(null);
 
             e.printStackTrace();
         }
-        return judgeResultDto;
+        return judgeResponseDto;
     }
 
     public void createCodeFile(String code, String path) throws IOException {
         File file = new File(path, "solution.java");
         System.out.println("파일 생성 중..");
         System.out.println("path : " + path);
+
         if(file.createNewFile());
         FileWriter fw = new FileWriter(file);
         fw.write(code);
         fw.close();
     }
+
+    // 코드에 SystemCall 호출 검사
+
+//    public SolveResult solve(SolveInfo solveInfo, String type, String no, String INTEXT, String OUTTEXT) throws IOException, InterruptedException{
+//        if (checkSystemCallInCode(solveInfo.getCode())) {
+//            System.out.println("시스템 콜 함수 사용");
+//            return new SolveResult(0, "시스템 콜 함수 사용", 0);
+//        }
+//        System.out.println("codeExecutor 실행 !");
+//        return codeExecutor(solveInfo, type, no,INTEXT, OUTTEXT);
+//    }
 
 }

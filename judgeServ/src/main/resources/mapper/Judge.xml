@@ -9,7 +9,6 @@
     </select>
 
     <update id="setSubmitStatus" parameterType="hashMap">
-
         update ps_submit set submit_status="${result}"
         <if test="time != null">
             , time_complexity="${time}"
